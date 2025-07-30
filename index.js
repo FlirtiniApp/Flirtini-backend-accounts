@@ -1,9 +1,11 @@
 const express = require('express');
 const session = require('express-session');
+const cors = require('cors');
 const app = express();
 const port = 3000;
 const month = 2628000000; // 30 days in milliseconds
 
+app.use(cors())
 app.use(express.json());
 
 //Start session middleware
