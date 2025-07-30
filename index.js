@@ -34,7 +34,7 @@ accountRouter.post('/login', (req, res) => {
         req.session.login = username;
         req.session.cookie.expires = new Date(Date.now() + month);
         req.session.save();
-        res.send("LOGIN SUCCESS: ", user);
+        res.send("LOGIN SUCCESS");
     } else {
         res.status(401).send("INVALID CREDENTIALS");
     }
@@ -45,7 +45,7 @@ accountRouter.post('/logout', (req, res) => {
     req.session.logged = false;
     req.session.login = ''; 
     req.session.save();
-    res.send("LOGOUT SUCCESS");
+    res.redirect('/account/login');
 });
 
 // REGISTER NEW USER
