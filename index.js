@@ -181,14 +181,18 @@ accountRouter.post('/register', [
 
 // UPDATE USER
 accountRouter.post('/update', (req, res) => {
-    const { login, password, email } = req.body;
+    const { firstname, lastname, login, password, birthday, email, phone } = req.body;
     if (!isLogged) {
         return res.send("Unauthorized");
     }
     const updatedUser = {
+        firstname: firstname || users.find(u => u.login === req.session.login).firstname,
+        lastname: lastname || users.find(u => u.login === req.session.login).lastname, 
         login: login || req.session.login,
         password: password || users.find(u => u.login === req.session.login).password,
-        email: email || users.find(u => u.login === req.session.login).email
+        birthday: birthday || users.find(u => u.login === req.session.login).birthday,
+        email: email || users.find(u => u.login === req.session.login).email,
+        phoneNumber: phone || users.find(u => u.login === req.session.login).phoneNumber
     };
 
     request.put({
