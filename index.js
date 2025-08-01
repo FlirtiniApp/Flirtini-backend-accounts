@@ -69,7 +69,8 @@ accountRouter.post('/logout', (req, res) => {
     req.session.logged = false;
     req.session.login = ''; 
     req.session.save();
-    res.redirect('/account/login');
+    res.status(200).send("LOGOUT SUCCESS");
+
 });
 
 // REGISTER NEW USER
@@ -144,7 +145,7 @@ accountRouter.post('/register', [
         lastname: lastname,
         login: login,
         password: password,
-        birtday: birthday,
+        birthday: birthday,
         email: email,
         phoneNumber: phone || ''
     };
