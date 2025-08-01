@@ -48,6 +48,15 @@ function getUsers() {
     });
 }
 
+// IS IT LOGGED IN?
+function isLogged(req, res) {
+    if (req.session.logged) {
+        res.status(200).send(true);
+    } else {
+        res.status(401).send(false);
+    }
+}
+
 // LOGIN
 accountRouter.post('/login', (req, res) => {
     getUsers();
