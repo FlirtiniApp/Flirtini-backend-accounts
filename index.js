@@ -183,8 +183,8 @@ accountRouter.post('/register', [
 // UPDATE USER
 accountRouter.post('/update', (req, res) => {
     const { login, password, email } = req.body;
-    if (!req.session.logged) {
-        return res.status(401).send("Unauthorized");
+    if (!isLogged) {
+        return res.send("Unauthorized");
     }
     const updatedUser = {
         login: login || req.session.login,
