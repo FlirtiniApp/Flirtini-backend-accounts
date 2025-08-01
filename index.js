@@ -1,34 +1,30 @@
 const express = require('express');
-const session = require('express-session');
 const cors = require('cors');
 const request = require('request');
-const { body, validationResult } = require('express-validator');
+const jwt = require('jsonwebtoken');
+const { body } = require('express-validator');
 const app = express();
 const port = 3000;
-const month = 2628000000; // 30 days in milliseconds
+const JWT_SECRET = 'engineer';
 
 app.use(express.json());
 
-const allowedOrigins = ['http://localhost:5173', 'http://172.24.3.4:5173'];
+const allowedOrigins = [
+  'http://192.168.1.105:5173',
+  'http://localhost:5173',
+  'http://172.24.3.4:5173',
+  'http://172.24.3.60:5173'
+];
 
 app.use(cors({
-    origin: function(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true
-}));
-
-//Start session middleware
-app.use(session({
-    secret: 'engineer',
-    resave: false,
-    saveUninitialized: false,
-    logged: false,
-    login: ''
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
 
 // ACCOUNT ROUTER
@@ -37,176 +33,174 @@ app.use('/account', accountRouter);
 
 let users = [];
 
-// THE DB IT GIVES NAMES FOR FREE++
-function getUsers() {
-    request.get('http://172.24.3.84:3000/users/all', (error, response, body) => {
-    if (!error && response.statusCode === 200) {
+// THE DB IT GIVES THE NAMES FOR FREE++
+function getUsersAsync() {
+  return new Promise((resolve, reject) => {
+    request.get('http://192.168.1.102:3000/users/all', (error, response, body) => {
+      if (!error && response.statusCode === 200) {
         users = JSON.parse(body);
-    } else {
-        console.error('Error:', error || body);
-    }
+        resolve(users);
+      } else {
+        reject(error || body);
+      }
     });
+  });
 }
 
-// IS IT LOGGED IN?
-function isLogged(req, res) {
-    if (req.session.logged) {
-        res.status(200).send(true);
-    } else {
-        res.status(401).send(false);
-    }
+// VERIFY JWT
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader?.split(' ')[1];
+
+  if (!token) return res.status(401).send('Unauthorized');
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).send('Invalid token');
+    req.user = user;
+    next();
+  });
 }
 
 // LOGIN
-accountRouter.post('/login', (req, res) => {
-    getUsers();
+accountRouter.post('/login', async (req, res) => {
+  try {
+    await getUsersAsync();
     const { login, password } = req.body;
     const user = users.find(u => u.login === login && u.password === password);
+
     if (user) {
-        req.session.logged = true;
-        req.session.login = login;
-        req.session.cookie.expires = new Date(Date.now() + month);
-        req.session.save();
-        res.send("LOGIN SUCCESS");
+      const token = jwt.sign(
+        { login: user.login, logged: true },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      return res.status(200).json({ token });
     } else {
-        res.status(401).send("UNAUTHORIZED");
+      return res.status(401).send("Invalid credentials");
     }
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).send("Server error during login");
+  }
 });
 
 // LOGOUT
 accountRouter.post('/logout', (req, res) => {
-    req.session.logged = false;
-    req.session.login = ''; 
-    req.session.save();
-    res.status(200).send("LOGOUT SUCCESS");
+  // Just tell the client to delete the token.
+  return res.status(200).send("LOGOUT SUCCESS");
 });
 
-// REGISTER NEW USER
+// REGISTER
 accountRouter.post('/register', [
 
-    // VALIDATION RULES
-    body('firstname')
-        .trim()
-        .notEmpty().withMessage('Name is required')
-        .isLength({ min: 2, max: 30 }).withMessage('Name must be 2-30 characters'),
-    
-    body('lastname')
-        .trim() 
-        .notEmpty().withMessage('Surname is required')
-        .isLength({ min: 2, max: 30 }).withMessage('Surname must be 2-30 characters'),
+  body('firstname').trim().notEmpty().isLength({ min: 2, max: 30 }),
+  body('lastname').trim().notEmpty().isLength({ min: 2, max: 30 }),
+  body('login').trim().notEmpty().isLength({ min: 4, max: 20 }),
+  body('password').trim().notEmpty().isStrongPassword({ minLength: 6 }),
+  body('birthday').trim().notEmpty().custom(value => {
+    const birthDate = new Date(value);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    if (age < 18) throw new Error('You must be at least 18 years old');
+    return true;
+  }),
+  body('email').trim().notEmpty().isEmail(),
+  body('phone').optional().matches(/^\+?[0-9\s\-]{7,15}$/)
 
-    body('login')
-        .trim()
-        .notEmpty().withMessage('Login is required')
-        .isLength({ min: 4, max: 20 }).withMessage('Login must be 4-20 characters'),
+], async (req, res) => {
+  const { firstname, lastname, login, password, birthday, email, phone } = req.body;
 
-    body('password')
-        .trim()
-        .notEmpty().withMessage('Password is required')
-        .isStrongPassword({ minLength: 6})
-        .withMessage('Password must be at least 6 characters'),
-    
-    body('birthday')
-        .trim()
-        .custom(value => {
-            const birthDate = new Date(value);
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
-            }
-            if (age < 18) {
-                throw new Error('You must be at least 18 years old');
-            }
-            return true;
-        })
-        //.isISO8601().withMessage('Invalid date format, use YYYY-MM-DD')
-        .notEmpty().withMessage('Birth date is required'),
+  await getUsersAsync();
+  const existingLogin = users.find(u => u.login === login);
+  const existingEmail = users.find(u => u.email === email);
 
-    body('email')
-        .trim()
-        .notEmpty().withMessage('Email is required')
-        .isEmail().withMessage('Invalid email format'),
+  if (existingLogin) return res.status(409).send("Login already exists");
+  if (existingEmail) return res.status(409).send("Email already exists");
 
-    body('phone')
-        .optional()
-        .matches(/^\+?[0-9\s\-]{7,15}$/).withMessage('Invalid phone number')
+  const newUser = {
+    firstname, lastname, login, password,
+    birthday, email, phoneNumber: phone || ''
+  };
 
-
-
-], (req, res) => {
-    const { firstname, lastname, login, password, birthday, email, phone } = req.body;
-
-    if (!login || !password || !email) {
-        return res.status(400).send("Login, password and email are required");
-    }
-
-    const existingLogin = users.find(u => u.login === login);
-    const existingEmail = users.find(u => u.email === email);
-
-    if (existingLogin) return res.status(409).send("Login already exists");
-    if (existingEmail) return res.status(409).send("Email already exists");
-
-    const newUser = {
-        firstname: firstname,
-        lastname: lastname,
-        login: login,
-        password: password,
-        birthday: birthday,
-        email: email,
-        phoneNumber: phone || ''
-    };
-
-    request.post({
-        url: 'http://172.24.3.84:3000/users',
-        json: newUser,
-    }, (error, response, body) => {
+  request.post({
+    url: 'http://192.168.1.102:3000/users',
+    json: newUser,
+  }, async (error, response, body) => {
     if (!error && response.statusCode === 201) {
-        getUsers();
+      await getUsersAsync();
 
-        req.session.logged = true;
-        req.session.login = login;
-        req.session.cookie.expires = new Date(Date.now() + month);
-        req.session.save();
+      const token = jwt.sign(
+        { login, logged: true },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
 
-        return res.status(201).send("REGISTER SUCCESS");
+      return res.status(201).json({ token });
     } else {
-        console.error('Register failed:', error || body);
+      console.error('Register failed:', error || body);
       return res.status(500).send("Failed to create user");
     }
   });
 });
 
-
 // UPDATE USER
-accountRouter.post('/update', (req, res) => {
-    const { firstname, lastname, login, password, birthday, email, phone } = req.body;
-    if (!isLogged) {
-        return res.send("Unauthorized");
-    }
-    const updatedUser = {
-        firstname: firstname || users.find(u => u.login === req.session.login).firstname,
-        lastname: lastname || users.find(u => u.login === req.session.login).lastname, 
-        login: login || req.session.login,
-        password: password || users.find(u => u.login === req.session.login).password,
-        birthday: birthday || users.find(u => u.login === req.session.login).birthday,
-        email: email || users.find(u => u.login === req.session.login).email,
-        phoneNumber: phone || users.find(u => u.login === req.session.login).phoneNumber
-    };
+accountRouter.post('/update', authenticateToken, async (req, res) => {
+  const { firstname, lastname, login, password, birthday, email, phone } = req.body;
 
-    request.put({
-        url: 'http://172.24.3.84:3000/users/' + users.find(u => u.login === req.session.login)._id,
-        json: updatedUser
-    }, (error, response, body) => {
-        if (!error && response.statusCode === 200) {
-            console.log('Updated:', body);
-        } else {
-            console.error('Error:', error || body);
-        }
-    });
+  await getUsersAsync();
+  const currentUser = users.find(u => u.login === req.user.login);
+
+  if (!currentUser) return res.status(401).send("Unauthorized");
+
+  const updatedUser = {
+    firstname: firstname || currentUser.firstname,
+    lastname: lastname || currentUser.lastname,
+    login: login || currentUser.login,
+    password: password || currentUser.password,
+    birthday: birthday || currentUser.birthday,
+    email: email || currentUser.email,
+    phoneNumber: phone || currentUser.phoneNumber
+  };
+
+  request.put({
+    url: `http://192.168.1.102:3000/users/${currentUser._id}`,
+    json: updatedUser
+  }, (error, response, body) => {
+    if (!error && response.statusCode === 200) {
+      return res.status(200).send("User updated successfully");
+    } else {
+      console.error('Update error:', error || body);
+      return res.status(500).send("Update failed");
+    }
+  });
+});
+
+// IS LOGGED?
+accountRouter.post('/logged', authenticateToken, (req, res) => {
+  return res.status(200).send(true);
+});
+
+// GET USER INFO
+accountRouter.get('/profile', authenticateToken, async (req, res) => {
+  await getUsersAsync();
+  const user = users.find(u => u.login === req.user.login);
+
+  if (!user) return res.status(401).send("Unauthorized");
+
+  const userInfo = {
+    firstname: user.firstname,
+    lastname: user.lastname,
+    login: user.login,
+    birthday: user.birthday,
+    email: user.email,
+    phoneNumber: user.phoneNumber
+  };
+
+  return res.status(200).json(userInfo);
 });
 
 app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
+  console.log(`Server running on http://192.168.1.88:${port}`);
 });
