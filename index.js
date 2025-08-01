@@ -79,7 +79,6 @@ accountRouter.post('/logout', (req, res) => {
     req.session.login = ''; 
     req.session.save();
     res.status(200).send("LOGOUT SUCCESS");
-
 });
 
 // REGISTER NEW USER
