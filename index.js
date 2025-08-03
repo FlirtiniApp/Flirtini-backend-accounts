@@ -84,12 +84,6 @@ accountRouter.post('/login', async (req, res) => {
   }
 });
 
-// LOGOUT
-accountRouter.post('/logout', (req, res) => {
-  // Just tell the client to delete the token.
-  return res.status(200).send("LOGOUT SUCCESS");
-});
-
 // REGISTER
 accountRouter.post('/register', [
 
