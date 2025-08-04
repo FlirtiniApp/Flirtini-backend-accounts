@@ -19,7 +19,8 @@ const allowedOrigins = [
   'http://192.168.1.105:5173', // APARTMENT IP FOR FRONTEND
   'http://localhost:5173', // LOCALHOST FOR FRONTEND
   'http://172.24.3.4:5173', // BOTH ESMOVIA IPS NEEDED FOR FRONTEND
-  'http://172.24.3.60:5173'
+  'http://172.24.3.60:5173',
+  '*'
 ];
 
 app.use(cors({
@@ -92,7 +93,6 @@ accountRouter.post('/login', async (req, res) => {
 
 // REGISTER
 accountRouter.post('/register', [
-
   body('firstname').trim().notEmpty().isLength({ min: 2, max: 30 }),
   body('lastname').trim().notEmpty().isLength({ min: 2, max: 30 }),
   body('login').trim().notEmpty().isLength({ min: 4, max: 20 }),
@@ -107,7 +107,7 @@ accountRouter.post('/register', [
     return true;
   }),
   body('email').trim().notEmpty().isEmail(),
-  body('phone').optional().matches(/^\+?[0-9\s\-]{7,15}$/)
+  body('phone').optional().matches(/^\+?[0-9\s\-]{9,15}$/)
 
 ], async (req, res) => {
   const { firstname, lastname, login, password, birthday, email, phone } = req.body;
@@ -120,8 +120,8 @@ accountRouter.post('/register', [
   if (existingEmail) return res.status(409).send("Email already exists");
 
   const newUser = {
-    firstname, lastname, login, password,
-    birthday, email, phoneNumber: phone || ''
+    firstName: firstname, lastName: lastname, login, password,
+    birthDate: birthday, email, phoneNumber: phone || ''
   };
 
   request.post({
@@ -155,11 +155,11 @@ accountRouter.post('/update', authenticateToken, async (req, res) => {
   if (!currentUser) return res.status(401).send("Unauthorized");
 
   const updatedUser = {
-    firstname: firstname || currentUser.firstname,
-    lastname: lastname || currentUser.lastname,
+    firstName: firstname || currentUser.firstname,
+    lastName: lastname || currentUser.lastname,
     login: login || currentUser.login,
     password: password || currentUser.password,
-    birthday: birthday || currentUser.birthday,
+    birthDate: birthday || currentUser.birthday,
     email: email || currentUser.email,
     phoneNumber: phone || currentUser.phoneNumber
   };
@@ -183,19 +183,18 @@ accountRouter.post('/logged', authenticateToken, (req, res) => {
 });
 
 // GET USER INFO
-accountRouter.get('/profile', authenticateToken, async (req, res) => {
+accountRouter.post('/profile', authenticateToken, async (req, res) => {
   await getUsersAsync();
   const user = users.find(u => u.login === req.user.login);
-
   if (!user) return res.status(401).send("Unauthorized");
 
   const userInfo = {
-    firstname: user.firstname,
-    lastname: user.lastname,
+    firstName: user.firstName,
+    lastName: user.lastName,
     login: user.login,
-    birthday: user.birthday,
+    birthDate: user.birthDate,
     email: user.email,
-    phoneNumber: user.phoneNumber
+    phoneNumber: user.phoneNumber || ''
   };
 
   return res.status(200).json(userInfo);
