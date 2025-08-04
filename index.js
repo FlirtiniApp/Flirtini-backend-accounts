@@ -6,7 +6,7 @@ const { body } = require('express-validator');
 const app = express();
 const port = 3000;
 const JWT_SECRET = 'engineer';
-const DBip = 'http://192.168.1.102:3000/';
+const DBip = 'http://172.24.3.84:3000/';
 
 const https = require("https");
 const fs = require("fs");
@@ -19,8 +19,7 @@ const allowedOrigins = [
   'http://192.168.1.105:5173', // APARTMENT IP FOR FRONTEND
   'http://localhost:5173', // LOCALHOST FOR FRONTEND
   'http://172.24.3.4:5173', // BOTH ESMOVIA IPS NEEDED FOR FRONTEND
-  'http://172.24.3.60:5173',
-  '*'
+  'http://172.24.3.60:5173' // -||-
 ];
 
 app.use(cors({
@@ -210,5 +209,5 @@ accountRouter.get('/test', (req, res) => {
 // });
 
 https.createServer({ key, cert }, app).listen(port, '0.0.0.0', () => {
-  console.log(`HTTPS Server running on https://192.168.1.88:${port}`);
+  console.log(`HTTPS Server running on http://172.24.3.162:${port}`);
 });
