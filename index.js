@@ -6,14 +6,21 @@ const { body } = require('express-validator');
 const app = express();
 const port = 3000;
 const JWT_SECRET = 'engineer';
+const DBip = 'http://192.168.1.102:3000/';
+
+const https = require("https");
+const fs = require("fs");
+const key = fs.readFileSync("./cert.key", "utf-8");
+const cert = fs.readFileSync("./cert.crt","utf-8");
 
 app.use(express.json());
 
 const allowedOrigins = [
-  'http://192.168.1.105:5173',
-  'http://localhost:5173',
-  'http://172.24.3.4:5173',
-  'http://172.24.3.60:5173'
+  'http://192.168.1.105:5173', // APARTMENT IP FOR FRONTEND
+  'http://localhost:5173', // LOCALHOST FOR FRONTEND
+  'http://172.24.3.4:5173', // BOTH ESMOVIA IPS NEEDED FOR FRONTEND
+  'http://172.24.3.60:5173',
+  '*'
 ];
 
 app.use(cors({
@@ -36,7 +43,7 @@ let users = [];
 // THE DB IT GIVES THE NAMES FOR FREE++
 function getUsersAsync() {
   return new Promise((resolve, reject) => {
-    request.get('http://192.168.1.102:3000/users/all', (error, response, body) => {
+    request.get(DBip + 'users/all', (error, response, body) => {
       if (!error && response.statusCode === 200) {
         users = JSON.parse(body);
         resolve(users);
@@ -86,7 +93,6 @@ accountRouter.post('/login', async (req, res) => {
 
 // REGISTER
 accountRouter.post('/register', [
-
   body('firstname').trim().notEmpty().isLength({ min: 2, max: 30 }),
   body('lastname').trim().notEmpty().isLength({ min: 2, max: 30 }),
   body('login').trim().notEmpty().isLength({ min: 4, max: 20 }),
@@ -101,7 +107,7 @@ accountRouter.post('/register', [
     return true;
   }),
   body('email').trim().notEmpty().isEmail(),
-  body('phone').optional().matches(/^\+?[0-9\s\-]{7,15}$/)
+  body('phone').optional().matches(/^\+?[0-9\s\-]{9,15}$/)
 
 ], async (req, res) => {
   const { firstname, lastname, login, password, birthday, email, phone } = req.body;
@@ -114,12 +120,12 @@ accountRouter.post('/register', [
   if (existingEmail) return res.status(409).send("Email already exists");
 
   const newUser = {
-    firstname, lastname, login, password,
-    birthday, email, phoneNumber: phone || ''
+    firstName: firstname, lastName: lastname, login, password,
+    birthDate: birthday, email, phoneNumber: phone || ''
   };
 
   request.post({
-    url: 'http://192.168.1.102:3000/users',
+    url: DBip + 'users',
     json: newUser,
   }, async (error, response, body) => {
     if (!error && response.statusCode === 201) {
@@ -149,17 +155,17 @@ accountRouter.post('/update', authenticateToken, async (req, res) => {
   if (!currentUser) return res.status(401).send("Unauthorized");
 
   const updatedUser = {
-    firstname: firstname || currentUser.firstname,
-    lastname: lastname || currentUser.lastname,
+    firstName: firstname || currentUser.firstname,
+    lastName: lastname || currentUser.lastname,
     login: login || currentUser.login,
     password: password || currentUser.password,
-    birthday: birthday || currentUser.birthday,
+    birthDate: birthday || currentUser.birthday,
     email: email || currentUser.email,
     phoneNumber: phone || currentUser.phoneNumber
   };
 
   request.put({
-    url: `http://192.168.1.102:3000/users/${currentUser._id}`,
+    url: DBip + `users/${currentUser._id}`,
     json: updatedUser
   }, (error, response, body) => {
     if (!error && response.statusCode === 200) {
@@ -177,24 +183,32 @@ accountRouter.post('/logged', authenticateToken, (req, res) => {
 });
 
 // GET USER INFO
-accountRouter.get('/profile', authenticateToken, async (req, res) => {
+accountRouter.post('/profile', authenticateToken, async (req, res) => {
   await getUsersAsync();
   const user = users.find(u => u.login === req.user.login);
-
   if (!user) return res.status(401).send("Unauthorized");
 
   const userInfo = {
-    firstname: user.firstname,
-    lastname: user.lastname,
+    firstName: user.firstName,
+    lastName: user.lastName,
     login: user.login,
-    birthday: user.birthday,
+    birthDate: user.birthDate,
     email: user.email,
-    phoneNumber: user.phoneNumber
+    phoneNumber: user.phoneNumber || ''
   };
 
   return res.status(200).json(userInfo);
 });
 
-app.listen(port, () => {
-  console.log(`Server running on http://192.168.1.88:${port}`);
+// TEST ENDPOINT
+accountRouter.get('/test', (req, res) => {
+  return res.status(200).send("Test endpoint is working");
+});
+
+// app.listen(port, () => {
+//   console.log(`Server running on http://192.168.1.88:${port}`);
+// });
+
+https.createServer({ key, cert }, app).listen(port, '0.0.0.0', () => {
+  console.log(`HTTPS Server running on https://192.168.1.88:${port}`);
 });
