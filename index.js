@@ -69,7 +69,7 @@ function authenticateToken(req, res, next) {
 
 // LOGIN
 accountRouter.post('/login', async (req, res) => {
-  try {
+  try {    
     await getUsersAsync();
     const { login, password } = req.body;
     const user = users.find(u => u.login === login && u.password === password);
