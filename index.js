@@ -76,7 +76,7 @@ accountRouter.post('/login', async (req, res) => {
 
     if (user) {
       const token = jwt.sign(
-        { login: user.login, id: user._id },
+        { id: user._id },
         JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -132,7 +132,7 @@ accountRouter.post('/register', [
       
       const user = users.find(u => u.login === login && u.password === password);
       const token = jwt.sign(
-        { login, id:  user._id},
+        { id: user._id},
         JWT_SECRET,
         { expiresIn: '30d' }
       );
