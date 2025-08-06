@@ -76,7 +76,7 @@ accountRouter.post('/login', async (req, res) => {
 
     if (user) {
       const token = jwt.sign(
-        { login: user.login, logged: true },
+        { login: user.login, id: user._id },
         JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -106,7 +106,7 @@ accountRouter.post('/register', [
     return true;
   }),
   body('email').trim().notEmpty().isEmail(),
-  body('phone').optional().matches(/^\+?[0-9\s\-]{9,15}$/)
+  body('phone').optional().matches(/^\+?[0-9\s\-]{9,12}$/)
 
 ], async (req, res) => {
   const { firstname, lastname, login, password, birthday, email, phone } = req.body;
@@ -129,9 +129,10 @@ accountRouter.post('/register', [
   }, async (error, response, body) => {
     if (!error && response.statusCode === 201) {
       await getUsersAsync();
-
+      
+      const user = users.find(u => u.login === login && u.password === password);
       const token = jwt.sign(
-        { login, logged: true },
+        { login, id:  user._id},
         JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -149,7 +150,7 @@ accountRouter.post('/update', authenticateToken, async (req, res) => {
   const { firstname, lastname, login, password, birthday, email, phone } = req.body;
 
   await getUsersAsync();
-  const currentUser = users.find(u => u.login === req.user.login);
+  const currentUser = users.find(u => u._id === req.user.id);
 
   if (!currentUser) return res.status(401).send("Unauthorized");
 
@@ -184,7 +185,7 @@ accountRouter.post('/logged', authenticateToken, (req, res) => {
 // GET USER INFO
 accountRouter.post('/profile', authenticateToken, async (req, res) => {
   await getUsersAsync();
-  const user = users.find(u => u.login === req.user.login);
+  const user = users.find(u => u._id === req.user.id);
   if (!user) return res.status(401).send("Unauthorized");
 
   const userInfo = {
@@ -204,10 +205,6 @@ accountRouter.get('/test', (req, res) => {
   return res.status(200).send("Test endpoint is working");
 });
 
-// app.listen(port, () => {
-//   console.log(`Server running on http://192.168.1.88:${port}`);
-// });
-
 https.createServer({ key, cert }, app).listen(port, '0.0.0.0', () => {
-  console.log(`HTTPS Server running on http://172.24.3.162:${port}`);
+  console.log(`HTTPS Server running on https://172.24.3.162:${port}`);
 });
